@@ -475,6 +475,38 @@ run the local app
 
 ---
 
+## 32. Create the stackcraft-audit skill
+
+```
+Create the stackcraft-audit skill.  Use the format "---
+name: the-name-in-lowercase-with-hyphens
+description: One or two sentences. What the skill does and when to use it.
+---
+The instructions: the steps to follow, what to check, what sources to use, the exact
+output format, and what never to do.".  Instructions are "What exact format does StackCraft require for exception messages in the service layer,
+and which HTTP status code do we have to use when a business rule is violated?"
+```
+
+**Verdict:** ✅ Created `.github/skills/stackcraft-audit/SKILL.md`, based on the live `stackcraft-coding` document (v3.1, through MCP).
+- **Sources:** the MCP document first, then the code, with `decisions.md` only for context.
+- **Steps:** quote §2.1 and §4.1 word for word, and check the service code and `GlobalExceptionHandler` with checked file and line numbers.
+- **Output:** a fixed format.
+- **Never list:** no answers from memory, no made-up quotes, read-only.
+
+The answers themselves aren't hard-coded in the skill, so it always reads the current version of the standard.
+
+---
+
+## 33. Shorten the skill
+
+```
+Refactor the skill.md file and limit it to 40 lines.
+```
+
+**Verdict:** 🔧 Worked after a fix. `SKILL.md` went from 71 to under 40 lines. The frontmatter, sources, steps, output format and "never" rules are all still there; only repetition was cut. Fixed: a terminal heredoc got garbled, so the file was rewritten with the editor tool instead.
+
+---
+
 <!-- Template for new entries:
 
 ## N. <short title>

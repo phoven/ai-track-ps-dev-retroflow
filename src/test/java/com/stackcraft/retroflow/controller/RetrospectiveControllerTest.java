@@ -219,5 +219,47 @@ class RetrospectiveControllerTest {
         mockMvc.perform(get("/api/retrospectives/{id}/action-items", UNKNOWN_ID)).andExpect(status().isNotFound());
     }
 
+    private ResultActions addActionItem(long retroId, String body) throws Exception {
+        return postJson(mockMvc, "/api/retrospectives/" + retroId + "/action-items", body);
+    }
+
+    @Test
+    void addActionItem_toOpenRetrospective_returns201WithDefaultPriority() throws Exception {
+        // Arrange
+        long retroId = createdRetroId("Sprint 7", "\"2026-10-12\"");
+
+        // Act & Assert
+        addActionItem(retroId, "{\"content\": \"Fix CI\", \"author\": \"Anyone\"}")
+                .andExpect(status().isCreated())
+                .andExpect(header().string("Location", containsString("/api/action-items/")))
+                .andExpect(jsonPath("$.retrospectiveId").value(retroId))
+                .andExpect(jsonPath("$.priority").value("MEDIUM"))
+                .andExpect(jsonPath("$.completed").value(false));
+    }
+
+    @Test
+    void addActionItem_toClosedRetrospective_returns409() throws Exception {
+        // Arrange
+        long retroId = createdRetroId("Sprint 7", "\"2026-10-12\"");
+        close(retroId, MEMBER);
+
+        // Act & Assert
+        addActionItem(retroId, "{\"content\": \"Fix CI\", \"author\": \"Grace\", \"priority\": \"HIGH\"}")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error").value(containsString("closed retrospective")));
+    }
+
+    @Test
+    void addActionItem_withInvalidBodyOrUnknownRetrospective_returns400Or404() throws Exception {
+        // Arrange
+        long retroId = createdRetroId("Sprint 7", "\"2026-10-12\"");
+
+        // Act & Assert
+        addActionItem(retroId, "{\"content\": \" \", \"author\": \"Grace\"}").andExpect(status().isBadRequest());
+        addActionItem(retroId, "{\"content\": \"Fix CI\", \"author\": \"Grace\", \"priority\": \"URGENT\"}")
+                .andExpect(status().isBadRequest());
+        addActionItem(UNKNOWN_ID, "{\"content\": \"Fix CI\", \"author\": \"Grace\"}").andExpect(status().isNotFound());
+    }
+
 }
 

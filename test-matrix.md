@@ -38,7 +38,7 @@ decision that isn't written down yet. Don't pick an answer; decide it in `decisi
 | #   | Operation | Situation | Expected result | Exception | HTTP | Covered by |
 |-----|-----------|-----------|-----------------|-----------|------|------------|
 | 3.1 | Add feedback (WENT_WELL / NEEDS_IMPROVEMENT) | Retro is CLOSED | Rejected | `RetroflowException` | 409 | Vendor `closingARetrospective_preventsAddingFeedback` (service) |
-| 3.2 | Add action item | Retro is CLOSED | Rejected | `RetroflowException` | 409 | `FeedbackServiceTest.addActionItem_toClosedRetrospective_throwsException` (service) |
+| 3.2 | Add action item `POST /api/retrospectives/{id}/action-items` (D16) | Retro is CLOSED | Rejected | `RetroflowException` | 409 | `FeedbackServiceTest.addActionItem_toClosedRetrospective_throwsException` (service), `RetrospectiveControllerTest.addActionItem_toClosedRetrospective_returns409` |
 | 3.3 | Modify feedback content (PUT, D5) | Retro is CLOSED | Rejected, content unchanged | `RetroflowException` | 409 | `FeedbackServiceTest.updateFeedbackContent_inClosedRetrospective_throwsException` (service) |
 | 3.4 | Delete feedback item (DELETE, D5) | Retro is CLOSED | Rejected, item still exists | `RetroflowException` | 409 | `FeedbackServiceTest.deleteFeedbackItem_inClosedRetrospective_throwsExceptionAndKeepsItem` (service) |
 | 3.5 | Modify feedback content | Retro is OPEN | Content updated | – | 200 | `FeedbackServiceTest.updateFeedbackContent_inOpenRetrospective_updatesContent` (service) |

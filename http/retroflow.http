@@ -33,6 +33,12 @@ Content-Type: application/json
 
 > {% client.global.set("retroId", response.body.id); %}
 
+### Add an action item → 201 (priority is optional, default MEDIUM)
+POST {{baseUrl}}/api/retrospectives/{{retroId}}/action-items
+Content-Type: application/json
+
+{"content": "Fix the flaky CI job", "author": "Alice", "priority": "HIGH"}
+
 ### Open a second one while the first is OPEN → 409
 POST {{baseUrl}}/api/teams/{{teamId}}/retrospectives
 Content-Type: application/json
@@ -72,8 +78,13 @@ Content-Type: application/json
 ### List the team's retrospectives → 200 (newest first)
 GET {{baseUrl}}/api/teams/{{teamId}}/retrospectives
 
+### Add an action item to the closed retro → 409
+POST {{baseUrl}}/api/retrospectives/{{retroId}}/action-items
+Content-Type: application/json
+
+{"content": "Fix the flaky CI job", "author": "Alice", "priority": "HIGH"}
+
 ### List the retro's action items → 200 (both filters optional, can be combined)
-# There is no endpoint to add action items yet, so this returns [] until one exists.
 GET {{baseUrl}}/api/retrospectives/{{retroId}}/action-items?priority=HIGH&completed=false
 
 ### Filter with an unknown priority → 400

@@ -1,5 +1,6 @@
 package com.stackcraft.retroflow.controller.dto;
 
+import com.stackcraft.retroflow.entity.FeedbackItem;
 import com.stackcraft.retroflow.entity.Retrospective;
 import com.stackcraft.retroflow.entity.Team;
 import org.junit.jupiter.api.Test;
@@ -14,6 +15,8 @@ class FieldLimitsTest {
         // Assert
         assertThat(FieldLimits.MAX_NAME_LENGTH).isEqualTo(Team.MAX_NAME_LENGTH);
         assertThat(FieldLimits.MAX_TITLE_LENGTH).isEqualTo(Retrospective.MAX_TITLE_LENGTH);
+        assertThat(FieldLimits.MAX_CONTENT_LENGTH).isEqualTo(FeedbackItem.MAX_CONTENT_LENGTH);
+        assertThat(FieldLimits.MAX_NAME_LENGTH).isEqualTo(FeedbackItem.MAX_AUTHOR_LENGTH);
     }
 
 }

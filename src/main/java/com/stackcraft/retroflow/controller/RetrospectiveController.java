@@ -1,6 +1,7 @@
 package com.stackcraft.retroflow.controller;
 
 import com.stackcraft.retroflow.controller.dto.ActionItemDtos.ActionItemResponse;
+import com.stackcraft.retroflow.controller.dto.ActionItemDtos.CreateActionItemRequest;
 import com.stackcraft.retroflow.controller.dto.RetrospectiveDtos.CloseRetrospectiveRequest;
 import com.stackcraft.retroflow.controller.dto.RetrospectiveDtos.CreateRetrospectiveRequest;
 import com.stackcraft.retroflow.controller.dto.RetrospectiveDtos.RetrospectiveResponse;
@@ -22,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import java.net.URI;
 import java.util.List;
 
 /**
@@ -31,6 +33,7 @@ import java.util.List;
  * PUT  /api/retrospectives/{id}/close     → 200 | 400 | 403 not a member | 404 | 409 already CLOSED
  * PATCH /api/retrospectives/{id}          → 200 | 400 empty or invalid body | 403 not a member | 404 | 409 CLOSED (D15)
  * GET  /api/retrospectives/{id}/action-items (optional priority, completed) → 200 | 400 invalid filter value | 404 (D9)
+ * POST /api/retrospectives/{id}/action-items → 201 | 400 | 404 | 409 CLOSED (D16)
  */
 @RestController
 @RequestMapping("/api")
@@ -82,6 +85,16 @@ public class RetrospectiveController {
                                                     @RequestParam(required = false) Priority priority,
                                                     @RequestParam(required = false) Boolean completed) {
         return ResponseMapper.toActionItemResponses(feedbackService.listActionItems(id, priority, completed));
+    }
+
+    @PostMapping("/retrospectives/{id}/action-items")
+    public ResponseEntity<ActionItemResponse> addActionItem(@PathVariable Long id,
+                                                            @Valid @RequestBody CreateActionItemRequest request) {
+        ActionItemResponse actionItem = ResponseMapper.toResponse(
+                feedbackService.addActionItem(id, request.content(), request.author(), request.priority()));
+        URI location = ServletUriComponentsBuilder.fromCurrentContextPath()
+                .path("/api/action-items/{id}").buildAndExpand(actionItem.id()).toUri();
+        return ResponseEntity.created(location).body(actionItem);
     }
 
 }
