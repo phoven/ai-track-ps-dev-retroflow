@@ -1,0 +1,6 @@
+* text=auto eol=lf
+
+# Maven wrapper scripts must keep their native line endings to be executable
+mvnw text eol=lf
+*.cmd text eol=crlf
+

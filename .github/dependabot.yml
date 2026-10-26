@@ -1,0 +1,16 @@
+version: 2
+updates:
+  # Keeps SHA-pinned actions up to date (updates both the SHA and the version comment)
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns: [ "*" ]
+
+  - package-ecosystem: maven
+    directory: /
+    schedule:
+      interval: weekly
+

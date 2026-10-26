@@ -1,13 +1,20 @@
 package com.stackcraft.retroflow.repository;
 
 import com.stackcraft.retroflow.entity.Team;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 
-/**
- * STUB — left behind by the previous vendor.
- *
- * Extends JpaRepository for basic CRUD out of the box; add derived query
- * methods here as the service layer needs them.
- */
+import java.util.Optional;
+
 public interface TeamRepository extends JpaRepository<Team, Long> {
+
+    /**
+     * Loads the team with a row lock held until the transaction ends. Used to
+     * serialize "create retrospective" per team so two concurrent requests
+     * can't both pass the "no open retrospective yet" check.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    Optional<Team> findWithLockById(Long id);
+
 }

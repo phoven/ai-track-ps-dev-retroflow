@@ -1,37 +1,50 @@
 package com.stackcraft.retroflow.entity;
 
+import jakarta.persistence.Column;
+import jakarta.persistence.DiscriminatorValue;
 import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 
 /**
- * STUB — left behind by the previous vendor.
+ * A feedback item of type ACTION_ITEM that also tracks a priority and a
+ * completed flag. Completing is one-way: a completed action item can never
+ * be marked incomplete again (enforced by {@code RetrospectiveService}).
  *
- * An ActionItem is a special kind of FeedbackItem (type ACTION_ITEM) that
- * additionally tracks a priority (LOW/MEDIUM/HIGH) and a boolean
- * completed flag. Action items can be marked completed, but a completed
- * action item can never be uncompleted. They must also be retrievable
- * filtered by priority and by completed status.
- *
- * This class is not yet related to FeedbackItem — deciding and
- * implementing the inheritance strategy between the two (single table,
- * joined, or a composition approach) is part of Block 1. Nothing has
- * been decided yet; this is deliberately just a bare stub.
+ * Stored in the feedback item table (SINGLE_TABLE inheritance, see
+ * {@link FeedbackItem}).
  */
 @Entity
-public class ActionItem {
+@DiscriminatorValue("ACTION")
+public class ActionItem extends FeedbackItem {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "priority")
+    private Priority priority;
 
-    public Long getId() {
-        return id;
+    // Wrapper type: the column is null for plain feedback rows in the shared table
+    @Column(name = "completed")
+    private Boolean completed = false;
+
+    protected ActionItem() {
+        // for JPA
     }
 
-    public void setId(Long id) {
-        this.id = id;
+    public ActionItem(Retrospective retrospective, String content, Priority priority, String author) {
+        super(retrospective, content, FeedbackType.ACTION_ITEM, author);
+        this.priority = priority;
+    }
+
+    public Priority getPriority() {
+        return priority;
+    }
+
+    public boolean isCompleted() {
+        return Boolean.TRUE.equals(completed);
+    }
+
+    public void complete() {
+        this.completed = true;
     }
 
 }

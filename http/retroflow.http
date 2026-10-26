@@ -1,0 +1,12 @@
+### RetroFlow — manual API requests
+# Run from IntelliJ IDEA (HTTP Client, built in) or VS Code (REST Client extension).
+# Start the app first: ./mvnw spring-boot:run
+#
+# Add a request here for every new endpoint, so the next developer can try it in one click.
+
+@baseUrl = http://localhost:8080
+
+### Health check
+GET {{baseUrl}}/actuator/health
+Accept: application/json
+
