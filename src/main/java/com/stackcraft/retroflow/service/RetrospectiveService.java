@@ -180,6 +180,47 @@ public class RetrospectiveService {
         return feedbackService.uncompleteActionItem(actionItemId);
     }
 
+    /**
+     * Changes the title and/or date of an OPEN retrospective on behalf of a team member (D15).
+     * A CLOSED retrospective is frozen and can't be reopened (brief). The status can't be changed
+     * here: closing goes through {@link #closeRetrospective(Long, String)}.
+     *
+     * @param retrospectiveId the retrospective
+     * @param title           new title, or null to keep it
+     * @param date            new date, or null to keep it
+     * @param status          null, or the current status; OPEN on a CLOSED retrospective is a reopen attempt
+     * @param updatedBy       name of the team member making the change
+     * @return the updated retrospective
+     * @throws InvalidInputException     if nothing is changed, the title is blank, updatedBy is missing,
+     *                                   or status CLOSED is sent for an OPEN retrospective
+     * @throws ResourceNotFoundException if it doesn't exist
+     * @throws NotTeamMemberException    if updatedBy is not a member of the team
+     * @throws RetroflowException        if it is CLOSED (reopen attempt or any other change)
+     */
+    public Retrospective updateRetrospective(Long retrospectiveId, String title, LocalDate date,
+                                             RetrospectiveStatus status, String updatedBy) {
+        if (title == null && date == null && status == null) {
+            throw new InvalidInputException(RETROSPECTIVE, retrospectiveId, "nothing to update: send title, date and/or status");
+        }
+        Retrospective retrospective = getRetrospective(retrospectiveId);
+        ServiceInput.requireMember(retrospective.getTeam(), updatedBy);
+        if (!retrospective.isOpen()) {
+            throw new RetroflowException(RETROSPECTIVE, retrospectiveId, status == RetrospectiveStatus.OPEN
+                    ? "closed, cannot be reopened" : "closed, cannot be modified");
+        }
+        if (status == RetrospectiveStatus.CLOSED) {
+            throw new InvalidInputException(RETROSPECTIVE, retrospectiveId,
+                    "status can't be changed here: use the close operation, which records who closed it");
+        }
+        if (title != null) {
+            retrospective.rename(ServiceInput.requireText(title, RETROSPECTIVE, retrospectiveId, "title"));
+        }
+        if (date != null) {
+            retrospective.reschedule(date);
+        }
+        return retrospective;
+    }
+
     private Team lockTeam(Long teamId) {
         return teamRepository.findWithLockById(teamId)
                 .orElseThrow(() -> new ResourceNotFoundException(TEAM, teamId));

@@ -13,7 +13,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static com.stackcraft.retroflow.TestData.uniqueTeamName;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -62,6 +69,47 @@ class RetrospectiveServiceTest {
         assertThatThrownBy(() -> retrospectiveService.createRetrospective(team.getId(), "Sprint 8", THIS_SPRINT, MEMBER))
                 .isExactlyInstanceOf(RetroflowException.class)
                 .hasMessage("Team %d: already has an open retrospective (Retrospective %d)", team.getId(), open.getId());
+    }
+
+    @Test
+    void createRetrospective_concurrentRequests_opensExactlyOne() throws Exception {
+        // Arrange: several requests for the same team, released at the same moment (row 1.4).
+        // The pessimistic team lock serializes them; without it, more than one could pass the check.
+        int requests = 8;
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService pool = Executors.newFixedThreadPool(requests);
+        List<Future<Retrospective>> results = new ArrayList<>();
+        try {
+            for (int i = 0; i < requests; i++) {
+                String title = "Sprint " + i;
+                results.add(pool.submit(() -> {
+                    start.await();
+                    return retrospectiveService.createRetrospective(team.getId(), title, THIS_SPRINT, MEMBER);
+                }));
+            }
+
+            // Act
+            start.countDown();
+            int created = 0;
+            int rejected = 0;
+            for (Future<Retrospective> result : results) {
+                try {
+                    result.get(10, TimeUnit.SECONDS);
+                    created++;
+                } catch (ExecutionException e) {
+                    assertThat(e.getCause()).isExactlyInstanceOf(RetroflowException.class);
+                    rejected++;
+                }
+            }
+
+            // Assert
+            assertThat(created).isEqualTo(1);
+            assertThat(rejected).isEqualTo(requests - 1);
+            assertThat(retrospectiveService.listRetrospectives(team.getId()))
+                    .filteredOn(Retrospective::isOpen).hasSize(1);
+        } finally {
+            pool.shutdownNow();
+        }
     }
 
     @Test

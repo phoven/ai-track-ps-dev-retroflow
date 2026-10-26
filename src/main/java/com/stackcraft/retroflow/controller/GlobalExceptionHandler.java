@@ -1,5 +1,6 @@
 package com.stackcraft.retroflow.controller;
 
+import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import com.stackcraft.retroflow.exception.InvalidInputException;
 import com.stackcraft.retroflow.exception.NotTeamMemberException;
 import com.stackcraft.retroflow.exception.ResourceNotFoundException;
@@ -7,6 +8,8 @@ import com.stackcraft.retroflow.exception.RetroflowException;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
@@ -17,6 +20,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
+import java.util.Arrays;
 import java.util.stream.Collectors;
 
 /**
@@ -60,7 +64,25 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     ResponseEntity<ApiError> unreadableBody(HttpMessageNotReadableException ex) {
+        if (ex.getCause() instanceof InvalidFormatException format && format.getTargetType() != null
+                && format.getTargetType().isEnum() && !format.getPath().isEmpty()) {
+            // Unknown enum value (P10): name the field and the allowed values, like the query-parameter case
+            String field = format.getPath().get(format.getPath().size() - 1).getFieldName();
+            return respond(HttpStatus.BAD_REQUEST, INVALID_REQUEST + "'%s' is not a valid %s (allowed: %s)"
+                    .formatted(format.getValue(), field, Arrays.toString(format.getTargetType().getEnumConstants())));
+        }
         return respond(HttpStatus.BAD_REQUEST, INVALID_REQUEST + "body is missing, malformed, or has a value of the wrong type");
+    }
+
+    /**
+     * Two requests raced past the service checks (e.g. the same new team name, P11). The database
+     * constraint or the row lock caught it; report it like the business rule it protects. The
+     * SQL details are logged, never returned (§4.2).
+     */
+    @ExceptionHandler({DataIntegrityViolationException.class, PessimisticLockingFailureException.class})
+    ResponseEntity<ApiError> concurrentConflict(Exception ex) {
+        log.warn("Concurrent request rejected by the database: {}", ex.getMessage());
+        return respond(HttpStatus.CONFLICT, INVALID_REQUEST + "conflicts with a concurrent change, please try again");
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)

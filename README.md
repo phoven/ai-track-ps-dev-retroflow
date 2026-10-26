@@ -131,9 +131,11 @@ the Spring Boot Dashboard. DevTools restarts the application automatically when 
 | `./mvnw test -Dtest=RetroflowBusinessRulesTest`                                         | Runs one test class                                                                                                       |
 | `./mvnw test -Dtest='RetroflowBusinessRulesTest#aTeam_cannotHaveTwoOpenRetrospectives'` | Runs one test method                                                                                                      |
 | `./mvnw verify`                                                                         | Runs the tests, generates the coverage report, and **fails if line coverage is below 80%**. This is exactly what CI runs. |
+| `./mvnw test-compile org.pitest:pitest-maven:mutationCoverage`                          | Mutation testing (PIT) of the `service` package with the service tests and vendor test. Takes a few minutes; not in CI.  |
 
 The coverage report is written to `target/site/jacoco/index.html`.
 On macOS, open it with `open target/site/jacoco/index.html`.
+The mutation report is written to `target/pit-reports/index.html`.
 
 | Test class                         | Covers                                                                                                                           |
 |------------------------------------|----------------------------------------------------------------------------------------------------------------------------------|
@@ -153,6 +155,18 @@ needed.
 - **VS Code:** install the **REST Client** extension (`humao.rest-client`) and click *Send Request*.
 
 When you add an endpoint, add a request for it to this file.
+
+### Postman collection
+
+[`http/retroflow.postman_collection.json`](http/retroflow.postman_collection.json) has 33 requests, each one
+with tests for the expected status code and error body:
+
+- **Postman:** *Import* → choose the file. Run the folders top to bottom, or use the *Collection Runner*.
+  Later requests reuse `teamId` and `retroId` from earlier ones, and every run creates a uniquely named
+  team, so you can run it again without restarting the app.
+- **Command line:** `npx newman run http/retroflow.postman_collection.json`.
+
+Change `baseUrl` in the collection variables if the app doesn't run on `http://localhost:8080`.
 
 ### curl
 

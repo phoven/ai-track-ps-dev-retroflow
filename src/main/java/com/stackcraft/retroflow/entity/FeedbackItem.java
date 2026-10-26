@@ -28,8 +28,8 @@ import jakarta.validation.constraints.Size;
  * and filtering action items is a plain WHERE clause. The price is that the
  * action-item columns (priority, completed) must be nullable.
  *
- * Only {@code content} and {@code author} have setters: changing the type or the
- * retrospective would break the inheritance or the closed-retro rule (D12).
+ * No setters (D12): only the content can change, through {@link #editContent(String)}. Changing
+ * the type, author or retrospective would break the inheritance, D5 or the closed-retro rule.
  */
 @Entity
 @Inheritance(strategy = InheritanceType.SINGLE_TABLE)
@@ -87,7 +87,8 @@ public class FeedbackItem {
         return content;
     }
 
-    public void setContent(String content) {
+    /** Replaces the text. Only allowed while the retrospective is OPEN: the caller (service) checks that (D5). */
+    public void editContent(String content) {
         this.content = content;
     }
 
@@ -99,9 +100,6 @@ public class FeedbackItem {
         return author;
     }
 
-    public void setAuthor(String author) {
-        this.author = author;
-    }
 
 }
 

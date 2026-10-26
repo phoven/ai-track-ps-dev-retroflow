@@ -22,6 +22,19 @@
         <jacoco.version>0.8.12</jacoco.version>
         <!-- Minimum line coverage enforced by `mvn verify` (0.80 = 80%) -->
         <jacoco.minimum.coverage>0.80</jacoco.minimum.coverage>
+        <!-- Mutation testing; versions checked on Maven Central (latest releases, no known CVEs) -->
+        <pitest.version>1.30.1</pitest.version>
+        <pitest.junit5.version>1.2.3</pitest.junit5.version>
+        <!--
+          Byte Buddy (used by Mockito in the @WebMvcTest tests) as managed by Spring Boot 3.3.4 is 1.14.19,
+          which only supports up to Java 23: on a Java 25 JDK every test that mocks fails. 1.18.16 is the
+          latest release (checked on Maven Central, no known CVEs) and supports Java 25. Overrides both
+          byte-buddy and byte-buddy-agent through Spring Boot's dependency management. Remove when Spring
+          Boot is upgraded to a version that manages a Java-25-capable Byte Buddy itself.
+        -->
+        <byte-buddy.version>1.18.16</byte-buddy.version>
+        <!-- Architecture tests; latest release, checked on Maven Central, no known CVEs -->
+        <archunit.version>1.5.1</archunit.version>
     </properties>
 
     <dependencies>
@@ -56,6 +69,13 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- Turns the layering rules into tests (ArchitectureTest): not managed by Spring Boot -->
+        <dependency>
+            <groupId>com.tngtech.archunit</groupId>
+            <artifactId>archunit-junit5</artifactId>
+            <version>${archunit.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -115,6 +135,39 @@
                         </configuration>
                     </execution>
                 </executions>
+            </plugin>
+            <!--
+              Mutation testing (PIT). Not bound to a phase, so `mvn verify` stays fast. Run on demand:
+                ./mvnw test-compile org.pitest:pitest-maven:mutationCoverage
+              Report: target/pit-reports/index.html (and mutations.xml)
+              Scope: the service layer (where the business rules live) and the tests that target it.
+            -->
+            <plugin>
+                <groupId>org.pitest</groupId>
+                <artifactId>pitest-maven</artifactId>
+                <version>${pitest.version}</version>
+                <dependencies>
+                    <!-- Lets PIT run JUnit 5 tests -->
+                    <dependency>
+                        <groupId>org.pitest</groupId>
+                        <artifactId>pitest-junit5-plugin</artifactId>
+                        <version>${pitest.junit5.version}</version>
+                    </dependency>
+                </dependencies>
+                <configuration>
+                    <targetClasses>
+                        <param>com.stackcraft.retroflow.service.*</param>
+                    </targetClasses>
+                    <targetTests>
+                        <param>com.stackcraft.retroflow.service.*Test</param>
+                        <param>com.stackcraft.retroflow.RetroflowBusinessRulesTest</param>
+                    </targetTests>
+                    <outputFormats>
+                        <param>HTML</param>
+                        <param>XML</param>
+                    </outputFormats>
+                    <timestampedReports>false</timestampedReports>
+                </configuration>
             </plugin>
         </plugins>
     </build>

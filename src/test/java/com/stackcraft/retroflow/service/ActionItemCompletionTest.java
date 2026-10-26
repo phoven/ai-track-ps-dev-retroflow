@@ -95,6 +95,16 @@ class ActionItemCompletionTest {
     }
 
     @Test
+    void uncompleteActionItem_viaRetrospectiveService_whenNotCompleted_returnsItUnchanged() {
+        // Act: the vendor-test entry point on RetrospectiveService (D13)
+        ActionItem result = retrospectiveService.uncompleteActionItem(actionItem.getId());
+
+        // Assert
+        assertThat(result.getId()).isEqualTo(actionItem.getId());
+        assertThat(result.isCompleted()).isFalse();
+    }
+
+    @Test
     void completeActionItem_onPlainFeedbackItem_throwsNotFound() {
         // Arrange
         FeedbackItem feedback = retrospectiveService.addFeedbackItem(retro.getId(), "Nice", "WENT_WELL", MEMBER);

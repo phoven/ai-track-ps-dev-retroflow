@@ -84,7 +84,8 @@ public class Retrospective {
         return title;
     }
 
-    public void setTitle(String title) {
+    /** Only allowed while OPEN: the caller (service) checks that (D15). */
+    public void rename(String title) {
         this.title = title;
     }
 
@@ -92,7 +93,8 @@ public class Retrospective {
         return date;
     }
 
-    public void setDate(LocalDate date) {
+    /** Only allowed while OPEN: the caller (service) checks that (D15). */
+    public void reschedule(LocalDate date) {
         this.date = date;
     }
 

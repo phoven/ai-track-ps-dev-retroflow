@@ -2,6 +2,7 @@ package com.stackcraft.retroflow.controller;
 
 import com.stackcraft.retroflow.controller.dto.TeamDtos.CreateTeamRequest;
 import com.stackcraft.retroflow.controller.dto.TeamDtos.TeamResponse;
+import com.stackcraft.retroflow.controller.mapper.ResponseMapper;
 import com.stackcraft.retroflow.service.TeamService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -29,15 +30,14 @@ public class TeamController {
 
     @PostMapping
     public ResponseEntity<TeamResponse> createTeam(@Valid @RequestBody CreateTeamRequest request) {
-        TeamResponse team = TeamResponse.from(teamService.createTeam(request.name(), request.members()));
+        TeamResponse team = ResponseMapper.toResponse(teamService.createTeam(request.name(), request.members()));
         var location = ServletUriComponentsBuilder.fromCurrentRequest().path("/{id}").buildAndExpand(team.id()).toUri();
         return ResponseEntity.created(location).body(team);
     }
 
     @GetMapping("/{id}")
     public TeamResponse getTeam(@PathVariable Long id) {
-        return TeamResponse.from(teamService.getTeam(id));
+        return ResponseMapper.toResponse(teamService.getTeam(id));
     }
 
 }
-

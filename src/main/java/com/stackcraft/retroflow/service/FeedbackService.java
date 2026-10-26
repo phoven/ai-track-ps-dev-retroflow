@@ -14,6 +14,8 @@ import com.stackcraft.retroflow.repository.RetrospectiveRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 /**
  * Feedback and action items. Items can only be added, edited or deleted while
  * their retrospective is OPEN (D5). Completing an action item is the one change
@@ -100,7 +102,7 @@ public class FeedbackService {
         String text = ServiceInput.requireText(content, FEEDBACK_ITEM, feedbackItemId, "content");
         FeedbackItem item = getFeedbackItem(feedbackItemId);
         requireOpen(item.getRetrospective(), "cannot modify feedback in a closed retrospective");
-        item.setContent(text);
+        item.editContent(text);
         return item;
     }
 
@@ -148,6 +150,73 @@ public class FeedbackService {
             throw new RetroflowException(ACTION_ITEM, actionItemId, "already completed, cannot be undone");
         }
         return actionItem;
+    }
+
+    /**
+     * Changes the priority of an action item while its retrospective is OPEN (D14). Also allowed
+     * for a completed item. After close the priority is frozen (D1).
+     *
+     * @param actionItemId the action item
+     * @param priority     the new priority
+     * @return the updated action item
+     * @throws InvalidInputException     if priority is missing
+     * @throws ResourceNotFoundException if the action item doesn't exist
+     * @throws RetroflowException        if the retrospective is closed
+     */
+    public ActionItem changePriority(Long actionItemId, Priority priority) {
+        ServiceInput.requirePresent(priority, ACTION_ITEM, actionItemId, "priority");
+        ActionItem actionItem = getActionItem(actionItemId);
+        requireOpen(actionItem.getRetrospective(), "cannot change the priority of an action item in a closed retrospective");
+        actionItem.changePriority(priority);
+        return actionItem;
+    }
+
+    /**
+     * The generic action item update behind {@code PATCH /api/action-items/{id}} (D8, D14).
+     * Each field is optional; the changes are applied in one transaction, so a rejected
+     * change rolls back the other one too.
+     *
+     * @param actionItemId the action item
+     * @param priority     new priority, or null to leave it unchanged
+     * @param completed    true completes the item, false is the D8 "uncomplete" check, null leaves it unchanged
+     * @return the updated action item
+     * @throws InvalidInputException     if neither field is given
+     * @throws ResourceNotFoundException if the action item doesn't exist
+     * @throws RetroflowException        if the priority is changed in a closed retrospective, the item is
+     *                                   completed again, or a completed item is uncompleted
+     */
+    public ActionItem updateActionItem(Long actionItemId, Priority priority, Boolean completed) {
+        if (priority == null && completed == null) {
+            throw new InvalidInputException(ACTION_ITEM, actionItemId, "nothing to update: send priority and/or completed");
+        }
+        ActionItem actionItem = getActionItem(actionItemId);
+        if (priority != null) {
+            changePriority(actionItemId, priority);
+        }
+        if (Boolean.TRUE.equals(completed)) {
+            completeActionItem(actionItemId);
+        } else if (Boolean.FALSE.equals(completed)) {
+            uncompleteActionItem(actionItemId);
+        }
+        return actionItem;
+    }
+
+    /**
+     * Lists the action items of a retrospective, open or closed (D9). Both filters are optional
+     * and can be combined.
+     *
+     * @param retrospectiveId the retrospective
+     * @param priority        only items with this priority; null means any
+     * @param completed       only completed (true) or open (false) items; null means any
+     * @return the matching action items, oldest first
+     * @throws ResourceNotFoundException if the retrospective doesn't exist
+     */
+    @Transactional(readOnly = true)
+    public List<ActionItem> listActionItems(Long retrospectiveId, Priority priority, Boolean completed) {
+        if (!retrospectiveRepository.existsById(retrospectiveId)) {
+            throw new ResourceNotFoundException(RETROSPECTIVE, retrospectiveId);
+        }
+        return actionItemRepository.findByRetrospectiveFiltered(retrospectiveId, priority, completed);
     }
 
     private Retrospective openRetrospective(Long retrospectiveId, String reasonIfClosed) {

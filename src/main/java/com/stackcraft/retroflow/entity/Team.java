@@ -20,8 +20,7 @@ import java.util.List;
 
 /**
  * A team: a unique name (D10) and at least one member, stored as names only.
- * Teams can't be changed after creation (D11); the setters exist for JPA-style
- * construction and tests.
+ * Teams can't be changed after creation (D11), so there are no setters (D12).
  */
 @Entity
 public class Team {
@@ -52,7 +51,7 @@ public class Team {
 
     public Team(String name, List<String> members) {
         this.name = name;
-        setMembers(members);
+        this.members = new ArrayList<>(members);
     }
 
     /** Case-insensitive membership check (member names are unique case-insensitively, D10). */
@@ -68,17 +67,10 @@ public class Team {
         return name;
     }
 
-    public void setName(String name) {
-        this.name = name;
-    }
-
     public List<String> getMembers() {
         return Collections.unmodifiableList(members);
     }
 
-    public void setMembers(List<String> members) {
-        this.members = new ArrayList<>(members);
-    }
 
 }
 

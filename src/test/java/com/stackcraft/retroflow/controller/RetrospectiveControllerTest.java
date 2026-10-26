@@ -1,6 +1,8 @@
 package com.stackcraft.retroflow.controller;
 
+import com.stackcraft.retroflow.entity.ActionItem;
 import com.stackcraft.retroflow.entity.Team;
+import com.stackcraft.retroflow.service.RetrospectiveService;
 import com.stackcraft.retroflow.service.TeamService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -36,6 +38,8 @@ class RetrospectiveControllerTest {
     private MockMvc mockMvc;
     @Autowired
     private TeamService teamService;
+    @Autowired
+    private RetrospectiveService retrospectiveService;
 
     private Team team;
 
@@ -171,6 +175,48 @@ class RetrospectiveControllerTest {
     void closeRetrospective_withUnknownId_returns404() throws Exception {
         // Act & Assert
         close(UNKNOWN_ID, MEMBER).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void listActionItems_withPriorityAndCompletedFilter_returns200MatchingItems() throws Exception {
+        // Arrange
+        long retroId = createdRetroId("Sprint 7", "\"2026-10-12\"");
+        ActionItem high = retrospectiveService.addActionItem(retroId, "Fix CI", "HIGH", MEMBER);
+        ActionItem done = retrospectiveService.addActionItem(retroId, "Pin actions", "HIGH", MEMBER);
+        retrospectiveService.addActionItem(retroId, "Tidy README", "LOW", MEMBER);
+        retrospectiveService.completeActionItem(done.getId());
+
+        // Act & Assert
+        mockMvc.perform(get("/api/retrospectives/{id}/action-items", retroId)
+                        .param("priority", "HIGH").param("completed", "false"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].id").value(high.getId()))
+                .andExpect(jsonPath("$[0].retrospectiveId").value(retroId))
+                .andExpect(jsonPath("$[0].priority").value("HIGH"))
+                .andExpect(jsonPath("$[0].completed").value(false));
+        mockMvc.perform(get("/api/retrospectives/{id}/action-items", retroId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(3)));
+    }
+
+    @Test
+    void listActionItems_withInvalidFilterValue_returns400() throws Exception {
+        // Arrange
+        long retroId = createdRetroId("Sprint 7", "\"2026-10-12\"");
+
+        // Act & Assert
+        mockMvc.perform(get("/api/retrospectives/{id}/action-items", retroId).param("priority", "URGENT"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("Request new: 'URGENT' is not a valid priority"));
+        mockMvc.perform(get("/api/retrospectives/{id}/action-items", retroId).param("completed", "maybe"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void listActionItems_ofUnknownRetrospective_returns404() throws Exception {
+        // Act & Assert
+        mockMvc.perform(get("/api/retrospectives/{id}/action-items", UNKNOWN_ID)).andExpect(status().isNotFound());
     }
 
 }

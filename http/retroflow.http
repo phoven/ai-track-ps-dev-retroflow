@@ -57,6 +57,25 @@ Content-Type: application/json
 
 {"closedBy": "Bob"}
 
+### Try to reopen → 409 (a closed retrospective can't be reopened)
+PATCH {{baseUrl}}/api/retrospectives/{{retroId}}
+Content-Type: application/json
+
+{"status": "OPEN", "updatedBy": "Bob"}
+
+### Rename a closed retrospective → 409 (only OPEN retrospectives can be updated)
+PATCH {{baseUrl}}/api/retrospectives/{{retroId}}
+Content-Type: application/json
+
+{"title": "Sprint 7 Retro (renamed)", "updatedBy": "Bob"}
+
 ### List the team's retrospectives → 200 (newest first)
 GET {{baseUrl}}/api/teams/{{teamId}}/retrospectives
+
+### List the retro's action items → 200 (both filters optional, can be combined)
+# There is no endpoint to add action items yet, so this returns [] until one exists.
+GET {{baseUrl}}/api/retrospectives/{{retroId}}/action-items?priority=HIGH&completed=false
+
+### Filter with an unknown priority → 400
+GET {{baseUrl}}/api/retrospectives/{{retroId}}/action-items?priority=URGENT
 

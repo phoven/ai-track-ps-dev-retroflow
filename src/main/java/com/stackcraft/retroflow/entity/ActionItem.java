@@ -41,7 +41,8 @@ public class ActionItem extends FeedbackItem {
         return priority;
     }
 
-    public void setPriority(Priority priority) {
+    /** Only allowed while the retrospective is OPEN: the caller (service) checks that (D1, D14). */
+    public void changePriority(Priority priority) {
         this.priority = priority;
     }
 
