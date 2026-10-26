@@ -6,13 +6,11 @@ package com.stackcraft.retroflow.exception;
  * Mapped to 409 Conflict. Subclasses refine the status (400, 403).
  *
  * Message format (standards §2.1): {@code <EntityType> <identifier>: <reason>},
- * with identifier {@code new} for entities that don't have an id yet.
+ * with identifier {@code new} for entities that don't have an id yet. There is deliberately no
+ * {@code (String message)} constructor: every message goes through {@link #format} (audit C2).
  */
 public class RetroflowException extends RuntimeException {
 
-    public RetroflowException(String message) {
-        super(message);
-    }
 
     public RetroflowException(String entityType, Object identifier, String reason) {
         super(format(entityType, identifier, reason));

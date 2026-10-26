@@ -200,7 +200,7 @@ All configuration is in `src/main/resources/application.properties`:
 | Property                                  | Value                   | Notes                                                              |
 |-------------------------------------------|-------------------------|--------------------------------------------------------------------|
 | `spring.datasource.url`                   | `jdbc:h2:mem:retroflow` | In-memory. Data is lost on restart.                                |
-| `spring.datasource.username` / `password` | `sa` / *(empty)*        |                                                                    |
+| `spring.datasource.username` / `password` | `sa` / *(empty)*        | Read from `RETROFLOW_DB_USERNAME` / `RETROFLOW_DB_PASSWORD`; the values shown are the local fallbacks. Never write a real password in the file (standards §5.1). |
 | `spring.jpa.hibernate.ddl-auto`           | `update`                | Hibernate creates the schema from the entities                     |
 | `spring.h2.console.enabled`               | `true`                  | Development convenience. **Disable it outside local development.** |
 | Actuator                                  | `/actuator/health` only | Spring Boot's default exposure                                     |

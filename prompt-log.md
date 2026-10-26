@@ -329,6 +329,152 @@ Wants proof: break each rule on purpose, show that the test fails, then put the 
 
 ---
 
+## 22. StackCraft: exception format and business-rule status
+
+```
+What exact format does StackCraft require for exception messages in the service layer,
+and which HTTP status code do we have to use when a business rule is violated?
+```
+
+**Verdict:** ✅ Answered from `stackcraft-coding-standards.md` §2.1 and §4.1, with line references: `[EntityType] [identifier]: [human-readable reason]` and 409 Conflict. Checked against the code: it follows both. Found a side issue: §3.1 also requires 70% branch coverage, but the JaCoCo gate only checks lines.
+
+---
+
+## 23. Same question, with MCP active
+
+```
+and now again with mcp active
+```
+
+**Verdict:** ❌ Not possible in this session. The AI's tool list has no MCP tools (only the built-in file, search and terminal tools), so it could not repeat the answer through MCP. It did not pretend otherwise. Next time: check in the tool picker that the MCP server's tools are enabled, and start a new chat so they get loaded.
+
+---
+
+## 24. Exception message format and business-rule status
+
+```
+What exact format does StackCraft require for exception messages in the service layer,
+and which HTTP status code do we have to use when a business rule is violated?
+```
+
+**Verdict:** ✅ Answered from `decisions.md` (HTTP status policy, citing standards §2.1/§2.2): messages are `<EntityType> <identifier>: <reason>` (`new` before an id exists), business-rule violations are 409 Conflict. The standards document itself is not in the repo, so the answer relies on how `decisions.md` quotes it.
+
+---
+
+## 25. MCP check
+
+```
+are you using the mcp server now?
+```
+
+**Verdict:** ❌ No. The session still has no MCP tools, only the built-in file, search and terminal tools. Entry 24 was answered from `decisions.md` in the workspace. Fix: enable the MCP server's tools in the tool picker and start a new chat.
+
+---
+
+## 26. MCP check, second try
+
+```
+and now
+```
+
+**Verdict:** ❌ Still no MCP tools in this chat. Tools added while a chat is open don't load into it. Fix: start a new chat after enabling the server.
+
+---
+
+## 27. MCP check, new chat
+
+```
+do you have mcps at your disposal
+```
+
+**Verdict:** ❌ No, not in this chat either. The only tools are the built-in ones (file read/edit, search, terminal, errors, CVE check, ask questions, a Search subagent). Fix: check that the MCP server is running and its tools are ticked in the tool picker, then start a new chat.
+
+---
+
+## 28. MCP check, after configuring the server URL
+
+```
+and now, do you have https://ai-track-ps-production.up.railway.app/mcp at your disposal?
+```
+
+**Verdict:** ✅ Yes, MCP tools are loaded now: the `ai-track-stan` server has `list_documents` and `read_document`. A live `list_documents` call returned 3 documents: `stackcraft-coding`, `stackcraft-qa` and `meridian-regulatory`. The tools don't show which URL they're served from, so the link to that Railway URL is inferred from the name and contents, not confirmed.
+
+---
+
+## 29. Exception message format and business-rule status, through MCP
+
+```
+What exact format does StackCraft require for exception messages in the service layer,
+and which HTTP status code do we have to use when a business rule is violated?
+```
+
+**Verdict:** ✅ Answered from the live `stackcraft-coding` document (v3.1), read through MCP. §2.1: `[EntityType] [identifier]: [human-readable reason]` (Critical). §4.1: business-rule violation = 409 Conflict (Critical). This matches entries 22 and 24, and now comes straight from the source document instead of a copy or `decisions.md`. Side notes: §3.1 also requires 70% branch coverage, and our JaCoCo gate doesn't check it. §1.1 wants feature-first packages; we're layer-first, which is allowed for existing projects.
+
+---
+
+## 30. Pair AD: audit against the standards, then fix the Critical findings
+
+```
+do it
+Pair AD: auditing the codebase against the standards
+Step 2: the audit
+Read: the codebase, and the standards document through the MCP server
+Create: audit/audit-findings.md (new file). No code changes yet
+Your mandate: find out where RetroFlow violates StackCraft's coding standards.
+
+The result is good when:
+
+Every finding names the file and the line
+Every finding quotes the section of the standards it violates
+Every finding explains why it matters
+Every finding comes with the correct implementation
+The findings are sorted by severity, Critical first, using the severity in the standards document
+Then check it:
+
+Take three findings and look up the quoted section in the document. Can't find it? Then the AI made it up. Write it down, it's great material for Retro 3.
+Take two findings and open the file at the line it names. Is the violation really there?
+Did the AI find the feature-first package structure rule (§1.1)? Think about why that one is tricky: the starter project was layer-first on purpose.
+Step 3: fix the Critical findings, with the tests watching
+Read: audit/audit-findings.md
+Create: code fixes on your branch, one per Critical finding. Mark each finding as fixed in audit/audit-findings.md. Existing tests stay untouched
+Your mandate: fix every Critical finding, one at a time, and keep the build green.
+
+The result is good when:
+
+Every fix is a separate step, and mvn test runs after each one
+Nothing in the existing tests was changed to make a fix pass
+Every fix has a short note: what was wrong and which section it's based on
+If a fix needs a new test, it has one
+Then check it:
+
+Open the Source Control panel. Did a test change? If so, why?
+Run mvn verify yourself. Does it still pass?
+```
+
+**Verdict:** 🔧 Partly done, on purpose. `audit/audit-findings.md` has 15 findings: 5 Critical, 3 Major, 6 Minor and 1 without a severity in the standard. §1.1 was found and flagged as a judgment call (grandfathered via P6, not yet confirmed).
+- **Fixed** (each with a new test that failed first, then `./mvnw test`): C2 §2.1 (free-form `RetroflowException(String)` constructor removed) and C5 §5.1 (datasource credentials from environment variables).
+- **Not fixed:**
+  - C1 §1.4: field injection in 14 test classes, including the vendor test.
+  - C3 §2.2: `"Not Found"` / `"Unexpected error"`, which 3 existing assertions expect.
+  - C4 §4.1: 403 vs D3.
+
+  All three need existing tests changed or a decision overruled, which the prompt and house rules forbid, so they're marked "decision needed".
+- **Fixed in the audit itself:** 3 wrong line numbers in the first draft.
+
+No existing test changed. `./mvnw verify`: 138 tests, 0 failures, coverage met.
+
+---
+
+## 31. Run the app
+
+```
+run the local app
+```
+
+**Verdict:** ✅ Port 8080 was free. Started `./mvnw spring-boot:run` in the background; `/actuator/health` returns `{"status":"UP"}`. The app now reads its database user and password from the environment (audit C5), and the local H2 fallbacks still work.
+
+---
+
 <!-- Template for new entries:
 
 ## N. <short title>
