@@ -1,14 +1,13 @@
 package com.stackcraft.retroflow.exception;
 
 /**
- * Thrown when a referenced resource (team, retrospective, action item) does
- * not exist. Kept separate from {@link RetroflowException} so it can be
- * mapped to 404 instead of a business-rule error.
+ * A referenced resource does not exist. Mapped to 404. Kept separate from
+ * {@link RetroflowException} because a missing resource is not a rule violation.
  */
 public class ResourceNotFoundException extends RuntimeException {
 
-    public ResourceNotFoundException(String resource, Long id) {
-        super("%s %d not found".formatted(resource, id));
+    public ResourceNotFoundException(String entityType, Long id) {
+        super(RetroflowException.format(entityType, id, "not found"));
     }
 
 }

@@ -9,12 +9,14 @@ import java.util.Optional;
 
 public interface TeamRepository extends JpaRepository<Team, Long> {
 
+    boolean existsByNameIgnoreCase(String name);
+
     /**
-     * Loads the team with a row lock held until the transaction ends. Used to
-     * serialize "create retrospective" per team so two concurrent requests
-     * can't both pass the "no open retrospective yet" check.
+     * Loads the team with a row lock held until the transaction ends, so two
+     * concurrent "create retrospective" requests for the same team are serialized.
      */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<Team> findWithLockById(Long id);
 
 }
+

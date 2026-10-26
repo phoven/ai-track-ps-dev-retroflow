@@ -3,8 +3,8 @@
 Backend API for StackCraft's internal retrospective tool. Replaces the mix of sticky notes,
 Miro boards, and shared Google Docs the 12 dev teams currently use to run retros.
 
-> **Project status: early.** The domain model, repositories, and service layer (with all
-> business rules) are done and tested. The REST endpoints don't exist yet. See
+> **Project status.** Domain model, business rules (service layer), and the team and
+> retrospective endpoints are done and tested. Feedback and action-item endpoints come next. See
 > [Current status](#current-status).
 
 ## Contents
@@ -19,6 +19,7 @@ Miro boards, and shared Google Docs the 12 dev teams currently use to run retros
 - [CI](#ci)
 - [Project structure](#project-structure)
 - [Business rules](#business-rules)
+- [API endpoints](#api-endpoints)
 - [Current status](#current-status)
 - [Troubleshooting](#troubleshooting)
 - [Contact](#contact)
@@ -88,8 +89,8 @@ curl http://localhost:8080/actuator/health
 # {"status":"UP"}
 ```
 
-You now have the API running locally. There are no business endpoints yet; see
-[Current status](#current-status).
+You now have the API running locally. Try the requests in [`http/retroflow.http`](http/retroflow.http),
+or see the [API endpoints](#api-endpoints).
 
 ### Alternative: dev container
 
@@ -237,7 +238,7 @@ SHAs by hand.
 │   ├── main/
 │   │   ├── java/com/stackcraft/retroflow/
 │   │   │   ├── RetroflowApplication.java   # Spring Boot entry point
-│   │   │   ├── controller/                 # REST controllers (currently an empty stub)
+│   │   │   ├── controller/                 # REST controllers, DTOs, global exception handler
 │   │   │   ├── entity/                     # Team, Retrospective, FeedbackItem ← ActionItem, enums
 │   │   │   ├── exception/                  # RetroflowException (rule violations), ResourceNotFoundException
 │   │   │   ├── repository/                 # Spring Data JPA repositories
@@ -260,38 +261,32 @@ items are stored in `feedback_item`, with an `item_kind` discriminator column. T
 
 ## Business rules
 
-All rules are enforced in the service layer. Violations throw `RetroflowException`; unknown
-ids throw `ResourceNotFoundException`.
+The rules, and every interpretation the brief left open, are in [`decisions.md`](decisions.md).
+[`test-matrix.md`](test-matrix.md) lists every rule × operation with its expected result, HTTP status,
+and the test that covers it. All rules are enforced in the service layer.
 
-1. A **closed** retrospective doesn't accept new feedback or action items, and its items can't
-   be modified. That includes completing action items (see the note below).
-2. A team can't have **two open** retrospectives at the same time. The check runs under a row
-   lock on the team, so concurrent requests can't both succeed.
-3. A **completed** action item can't be marked incomplete again.
-4. A closed retrospective can't be reopened or closed again.
-5. A team needs a non-blank name and at least one member. Feedback needs content and an author.
-6. Feedback types (`WENT_WELL`, `NEEDS_IMPROVEMENT`) and priorities (`LOW`, `MEDIUM`, `HIGH`)
-   are case-insensitive. Action items must be added through `addActionItem`, which requires a
-   priority.
+## API endpoints
 
-> **Open question for the product owner.** The brief says items of a closed retrospective "can
-> never be modified", so action items currently **can't be completed after their retrospective
-> closes**. In practice, action items are usually done *after* the retro. If they should stay
-> completable, remove the closed-retrospective check from `RetrospectiveService.completeActionItem`.
+Errors use the format `{"error": "<Entity> <id>: <reason>", "status": 409, "timestamp": "…"}`.
+
+| Method | Path | Body | Success | Errors |
+|---|---|---|---|---|
+| POST | `/api/teams` | `{"name", "members": [..]}` | 201 + `Location` | 400, 409 name taken |
+| GET | `/api/teams/{id}` | | 200 | 400, 404 |
+| POST | `/api/teams/{teamId}/retrospectives` | `{"title", "date": "yyyy-MM-dd", "createdBy"}` | 201 + `Location` | 400, 403 not a member, 404, 409 one already OPEN |
+| GET | `/api/teams/{teamId}/retrospectives` | | 200, newest first | 400, 404 |
+| GET | `/api/retrospectives/{id}` | | 200 | 400, 404 |
+| PUT | `/api/retrospectives/{id}/close` | `{"closedBy"}` | 200 | 400, 403, 404, 409 already CLOSED |
 
 ## Current status
 
-| Area                                                                | Status                                           |
-|---------------------------------------------------------------------|--------------------------------------------------|
-| Domain model (entities) and repositories                            | ✅ Done                                          |
-| Build, Docker image, CI, coverage gate                              | ✅ Done                                          |
-| Service layer (`TeamService`, `RetrospectiveService`)               | ✅ Done (filtering action items not yet added)   |
-| REST endpoints (`RetroflowController` is an empty stub)             | ❌ Not started                                   |
-| Global exception handler (maps `RetroflowException` to HTTP errors) | ❌ Not started                                   |
-
-Required API operations: create and retrieve teams, create and close retrospectives, add
-feedback items, mark action items complete, and filter action items by priority and completed
-status.
+| Area | Status |
+|---|---|
+| Entities, repositories, service layer with all business rules | ✅ Done |
+| Team and retrospective endpoints, global exception handler | ✅ Done |
+| Build, Docker image, CI, coverage gate | ✅ Done |
+| Feedback endpoints (add, list, edit, delete) and action-item endpoints (PATCH, filter) | ❌ Next; see `test-matrix.md` |
+| Changing an action item's priority | ❓ Not decided (`decisions.md`, O1) |
 
 ## Troubleshooting
 

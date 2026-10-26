@@ -10,39 +10,54 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OrderColumn;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.Size;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
 /**
- * A team with a name and at least one member (member names only, no
- * authentication). Validation is enforced by {@code TeamService}.
+ * A team: a unique name (D10) and at least one member, stored as names only.
+ * Teams can't be changed after creation (D11); the setters exist for JPA-style
+ * construction and tests.
  */
 @Entity
 public class Team {
+
+    public static final int MAX_NAME_LENGTH = 100;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
+    @NotBlank
+    @Size(max = MAX_NAME_LENGTH)
+    @Column(nullable = false, unique = true, length = MAX_NAME_LENGTH)
     private String name;
 
-    // Small, always needed together with the team: load eagerly so a returned Team is usable
+    // Small and always needed with the team, so loaded eagerly (no lazy-loading errors outside a transaction).
+    // Unidirectional: a team doesn't hold its retrospectives; query them via RetrospectiveRepository.
+    @NotEmpty
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "team_member", joinColumns = @JoinColumn(name = "team_id"))
     @OrderColumn(name = "position")
-    @Column(name = "member_name", nullable = false)
-    private List<String> members = new ArrayList<>();
+    @Column(name = "member_name", nullable = false, length = MAX_NAME_LENGTH)
+    private List<@NotBlank @Size(max = MAX_NAME_LENGTH) String> members = new ArrayList<>();
 
-    protected Team() {
+    public Team() {
         // for JPA
     }
 
     public Team(String name, List<String> members) {
         this.name = name;
-        this.members = new ArrayList<>(members);
+        setMembers(members);
+    }
+
+    /** Case-insensitive membership check (member names are unique case-insensitively, D10). */
+    public boolean hasMember(String memberName) {
+        return memberName != null && members.stream().anyMatch(member -> member.equalsIgnoreCase(memberName.strip()));
     }
 
     public Long getId() {
@@ -53,8 +68,17 @@ public class Team {
         return name;
     }
 
+    public void setName(String name) {
+        this.name = name;
+    }
+
     public List<String> getMembers() {
         return Collections.unmodifiableList(members);
     }
 
+    public void setMembers(List<String> members) {
+        this.members = new ArrayList<>(members);
+    }
+
 }
+

@@ -4,8 +4,15 @@ import com.stackcraft.retroflow.entity.Retrospective;
 import com.stackcraft.retroflow.entity.RetrospectiveStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.List;
+import java.util.Optional;
+
 public interface RetrospectiveRepository extends JpaRepository<Retrospective, Long> {
 
-    boolean existsByTeamIdAndStatus(Long teamId, RetrospectiveStatus status);
+    Optional<Retrospective> findFirstByTeamIdAndStatus(Long teamId, RetrospectiveStatus status);
+
+    /** Newest first (proposed default P2). */
+    List<Retrospective> findByTeamIdOrderByDateDescIdDesc(Long teamId);
 
 }
+

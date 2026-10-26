@@ -1,12 +1,62 @@
-### RetroFlow — manual API requests
+### RetroFlow: manual API requests
 # Run from IntelliJ IDEA (HTTP Client, built in) or VS Code (REST Client extension).
 # Start the app first: ./mvnw spring-boot:run
-#
-# Add a request here for every new endpoint, so the next developer can try it in one click.
+# Run the requests top to bottom: later requests reuse ids captured from earlier ones.
 
 @baseUrl = http://localhost:8080
 
 ### Health check
 GET {{baseUrl}}/actuator/health
-Accept: application/json
+
+### Create a team → 201 (run twice → 409: team names are unique)
+POST {{baseUrl}}/api/teams
+Content-Type: application/json
+
+{"name": "Team Alpha", "members": ["Alice", "Bob"]}
+
+> {% client.global.set("teamId", response.body.id); %}
+
+### Get the team → 200
+GET {{baseUrl}}/api/teams/{{teamId}}
+
+### Create a team without members → 400
+POST {{baseUrl}}/api/teams
+Content-Type: application/json
+
+{"name": "Empty team", "members": []}
+
+### Open a retrospective → 201
+POST {{baseUrl}}/api/teams/{{teamId}}/retrospectives
+Content-Type: application/json
+
+{"title": "Sprint 7 Retro", "date": "2026-10-26", "createdBy": "Alice"}
+
+> {% client.global.set("retroId", response.body.id); %}
+
+### Open a second one while the first is OPEN → 409
+POST {{baseUrl}}/api/teams/{{teamId}}/retrospectives
+Content-Type: application/json
+
+{"title": "Sprint 8 Retro", "date": "2026-11-09", "createdBy": "Alice"}
+
+### Close by a non-member → 403
+PUT {{baseUrl}}/api/retrospectives/{{retroId}}/close
+Content-Type: application/json
+
+{"closedBy": "Mallory"}
+
+### Close by a member → 200
+PUT {{baseUrl}}/api/retrospectives/{{retroId}}/close
+Content-Type: application/json
+
+{"closedBy": "Bob"}
+
+### Close again → 409
+PUT {{baseUrl}}/api/retrospectives/{{retroId}}/close
+Content-Type: application/json
+
+{"closedBy": "Bob"}
+
+### List the team's retrospectives → 200 (newest first)
+GET {{baseUrl}}/api/teams/{{teamId}}/retrospectives
 

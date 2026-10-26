@@ -1,17 +1,12 @@
 package com.stackcraft.retroflow.exception;
 
 /**
- * Thrown when a request violates one of RetroFlow's business rules — e.g.
- * attempting to modify a closed retrospective, creating a second OPEN
- * retrospective for a team, or uncompleting an already-completed action
- * item.
+ * A request violates one of RetroFlow's business rules, e.g. adding feedback
+ * to a closed retrospective or opening a second retrospective for a team.
+ * Mapped to 409 Conflict. Subclasses refine the status (400, 403).
  *
- * Left as bare infrastructure by the previous vendor: the class exists so
- * the inherited test file compiles against it, but nothing yet throws it
- * with a real, specific message. Building the service layer that actually
- * enforces the business rules and throws this appropriately — plus a
- * global exception handler that maps it to a proper HTTP error response —
- * is part of Block 1 and Block 2.
+ * Message format (standards §2.1): {@code <EntityType> <identifier>: <reason>},
+ * with identifier {@code new} for entities that don't have an id yet.
  */
 public class RetroflowException extends RuntimeException {
 
@@ -19,4 +14,13 @@ public class RetroflowException extends RuntimeException {
         super(message);
     }
 
+    public RetroflowException(String entityType, Object identifier, String reason) {
+        super(format(entityType, identifier, reason));
+    }
+
+    static String format(String entityType, Object identifier, String reason) {
+        return "%s %s: %s".formatted(entityType, identifier == null ? "new" : identifier, reason);
+    }
+
 }
+

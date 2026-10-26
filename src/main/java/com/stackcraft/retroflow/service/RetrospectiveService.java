@@ -7,137 +7,203 @@ import com.stackcraft.retroflow.entity.Priority;
 import com.stackcraft.retroflow.entity.Retrospective;
 import com.stackcraft.retroflow.entity.RetrospectiveStatus;
 import com.stackcraft.retroflow.entity.Team;
+import com.stackcraft.retroflow.exception.InvalidInputException;
+import com.stackcraft.retroflow.exception.NotTeamMemberException;
 import com.stackcraft.retroflow.exception.ResourceNotFoundException;
 import com.stackcraft.retroflow.exception.RetroflowException;
-import com.stackcraft.retroflow.repository.ActionItemRepository;
-import com.stackcraft.retroflow.repository.FeedbackItemRepository;
 import com.stackcraft.retroflow.repository.RetrospectiveRepository;
 import com.stackcraft.retroflow.repository.TeamRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.util.Arrays;
+import java.util.List;
 
 /**
- * Retrospective lifecycle and its feedback/action items. All business rules
- * are enforced here and reported as {@link RetroflowException}; unknown ids
- * are reported as {@link ResourceNotFoundException}.
+ * Retrospective lifecycle (one OPEN per team, closing is one-way), plus the feedback
+ * operations the vendor test calls on this service, delegated to {@link FeedbackService}.
  */
 @Service
 @Transactional
 public class RetrospectiveService {
 
+    private static final String TEAM = "Team";
+    private static final String RETROSPECTIVE = "Retrospective";
+
     private final TeamRepository teamRepository;
     private final RetrospectiveRepository retrospectiveRepository;
-    private final FeedbackItemRepository feedbackItemRepository;
-    private final ActionItemRepository actionItemRepository;
+    private final FeedbackService feedbackService;
 
     public RetrospectiveService(TeamRepository teamRepository,
                                 RetrospectiveRepository retrospectiveRepository,
-                                FeedbackItemRepository feedbackItemRepository,
-                                ActionItemRepository actionItemRepository) {
+                                FeedbackService feedbackService) {
         this.teamRepository = teamRepository;
         this.retrospectiveRepository = retrospectiveRepository;
-        this.feedbackItemRepository = feedbackItemRepository;
-        this.actionItemRepository = actionItemRepository;
+        this.feedbackService = feedbackService;
     }
 
+    /**
+     * Opens a retrospective on behalf of a team member (D3) for the given date (D4).
+     * @param teamId    the team
+     * @param title     retrospective title
+     * @param date      date of the retrospective, any date
+     * @param createdBy name of the team member opening it
+     * @return the new OPEN retrospective
+     * @throws ResourceNotFoundException if the team doesn't exist
+     * @throws InvalidInputException     if title, date or createdBy is missing
+     * @throws NotTeamMemberException    if createdBy is not a member of the team
+     * @throws RetroflowException        if the team already has an OPEN retrospective
+     */
+    public Retrospective createRetrospective(Long teamId, String title, LocalDate date, String createdBy) {
+        Team team = lockTeam(teamId);
+        ServiceInput.requireMember(team, createdBy);
+        return open(team, title, date);
+    }
+
+    /**
+     * Vendor-test overload (D13): date = today, no member check. The API never calls this.
+     * @param teamId the team
+     * @param title  retrospective title
+     * @return the new OPEN retrospective
+     * @throws ResourceNotFoundException if the team doesn't exist
+     * @throws RetroflowException        if the title is blank or the team already has an OPEN retrospective
+     */
     public Retrospective createRetrospective(Long teamId, String title) {
-        requireText(title, "Retrospective title");
-        // Lock the team so concurrent requests can't both create an open retrospective
-        Team team = teamRepository.findWithLockById(teamId)
-                .orElseThrow(() -> new ResourceNotFoundException("Team", teamId));
-        if (retrospectiveRepository.existsByTeamIdAndStatus(teamId, RetrospectiveStatus.OPEN)) {
-            throw new RetroflowException(
-                    "Team %d already has an open retrospective; close it before starting a new one".formatted(teamId));
-        }
-        return retrospectiveRepository.save(new Retrospective(team, title.strip(), LocalDate.now()));
+        return open(lockTeam(teamId), title, LocalDate.now());
     }
 
+    /**
+     * Returns a retrospective.
+     * @param retrospectiveId the retrospective
+     * @return the retrospective
+     * @throws ResourceNotFoundException if it doesn't exist
+     */
     @Transactional(readOnly = true)
     public Retrospective getRetrospective(Long retrospectiveId) {
         return retrospectiveRepository.findById(retrospectiveId)
-                .orElseThrow(() -> new ResourceNotFoundException("Retrospective", retrospectiveId));
+                .orElseThrow(() -> new ResourceNotFoundException(RETROSPECTIVE, retrospectiveId));
     }
 
-    public Retrospective closeRetrospective(Long retrospectiveId) {
+    /**
+     * Lists a team's retrospectives.
+     * @param teamId the team
+     * @return the team's retrospectives, newest first
+     * @throws ResourceNotFoundException if the team doesn't exist
+     */
+    @Transactional(readOnly = true)
+    public List<Retrospective> listRetrospectives(Long teamId) {
+        if (!teamRepository.existsById(teamId)) {
+            throw new ResourceNotFoundException(TEAM, teamId);
+        }
+        return retrospectiveRepository.findByTeamIdOrderByDateDescIdDesc(teamId);
+    }
+
+    /**
+     * Closes a retrospective on behalf of a team member (D3). Closing is one-way.
+     * @param retrospectiveId the retrospective
+     * @param closedBy        name of the team member closing it
+     * @return the CLOSED retrospective
+     * @throws ResourceNotFoundException if it doesn't exist
+     * @throws InvalidInputException     if closedBy is missing
+     * @throws NotTeamMemberException    if closedBy is not a member of the team
+     * @throws RetroflowException        if it is already closed (D7)
+     */
+    public Retrospective closeRetrospective(Long retrospectiveId, String closedBy) {
         Retrospective retrospective = getRetrospective(retrospectiveId);
-        requireOpen(retrospective, "close it again");
+        ServiceInput.requireMember(retrospective.getTeam(), closedBy);
+        return close(retrospective);
+    }
+
+    /**
+     * Vendor-test overload (D13): no member check. The API never calls this.
+     * @param retrospectiveId the retrospective
+     * @return the CLOSED retrospective
+     * @throws ResourceNotFoundException if it doesn't exist
+     * @throws RetroflowException        if it is already closed (D7)
+     */
+    public Retrospective closeRetrospective(Long retrospectiveId) {
+        return close(getRetrospective(retrospectiveId));
+    }
+
+    /**
+     * Vendor-test entry point; see {@link FeedbackService#addFeedbackItem}.
+     * @param retrospectiveId the retrospective
+     * @param content         feedback text
+     * @param type            feedback type name, case-insensitive
+     * @param author          name of the author
+     * @return the new feedback item
+     * @throws InvalidInputException     if a value is blank or the type is unknown
+     * @throws ResourceNotFoundException if the retrospective doesn't exist
+     * @throws RetroflowException        if the retrospective is closed
+     */
+    public FeedbackItem addFeedbackItem(Long retrospectiveId, String content, String type, String author) {
+        FeedbackType feedbackType = ServiceInput.parseEnum(FeedbackType.class, type, "FeedbackItem", "type");
+        return feedbackService.addFeedbackItem(retrospectiveId, content, feedbackType, author, null);
+    }
+
+    /**
+     * Vendor-test entry point; see {@link FeedbackService#addActionItem}.
+     * @param retrospectiveId the retrospective
+     * @param content         action item text
+     * @param priority        priority name, case-insensitive; null means MEDIUM (D6)
+     * @param author          name of the author
+     * @return the new action item
+     * @throws InvalidInputException     if a value is blank or the priority is unknown
+     * @throws ResourceNotFoundException if the retrospective doesn't exist
+     * @throws RetroflowException        if the retrospective is closed
+     */
+    public ActionItem addActionItem(Long retrospectiveId, String content, String priority, String author) {
+        Priority actionPriority = priority == null ? null
+                : ServiceInput.parseEnum(Priority.class, priority, "ActionItem", "priority");
+        return feedbackService.addActionItem(retrospectiveId, content, author, actionPriority);
+    }
+
+    /**
+     * Vendor-test entry point; see {@link FeedbackService#completeActionItem}.
+     * @param actionItemId the action item
+     * @return the completed action item
+     * @throws ResourceNotFoundException if it doesn't exist
+     * @throws RetroflowException        if it is already completed
+     */
+    public ActionItem completeActionItem(Long actionItemId) {
+        return feedbackService.completeActionItem(actionItemId);
+    }
+
+    /**
+     * Vendor-test entry point; see {@link FeedbackService#uncompleteActionItem}.
+     * @param actionItemId the action item
+     * @return the unchanged action item
+     * @throws ResourceNotFoundException if it doesn't exist
+     * @throws RetroflowException        if it is completed
+     */
+    public ActionItem uncompleteActionItem(Long actionItemId) {
+        return feedbackService.uncompleteActionItem(actionItemId);
+    }
+
+    private Team lockTeam(Long teamId) {
+        return teamRepository.findWithLockById(teamId)
+                .orElseThrow(() -> new ResourceNotFoundException(TEAM, teamId));
+    }
+
+    private Retrospective open(Team team, String title, LocalDate date) {
+        String retroTitle = ServiceInput.requireText(title, RETROSPECTIVE, null, "title");
+        ServiceInput.requirePresent(date, RETROSPECTIVE, null, "date");
+        var openRetro = retrospectiveRepository.findFirstByTeamIdAndStatus(team.getId(), RetrospectiveStatus.OPEN);
+        if (openRetro.isPresent()) {
+            throw new RetroflowException(TEAM, team.getId(), "already has an open retrospective (Retrospective %d)"
+                    .formatted(openRetro.get().getId()));
+        }
+        return retrospectiveRepository.save(new Retrospective(team, retroTitle, date));
+    }
+
+    private Retrospective close(Retrospective retrospective) {
+        if (!retrospective.isOpen()) {
+            throw new RetroflowException(RETROSPECTIVE, retrospective.getId(), "already closed, cannot be closed again");
+        }
         retrospective.close();
         return retrospective;
     }
 
-    public FeedbackItem addFeedbackItem(Long retrospectiveId, String content, String type, String author) {
-        FeedbackType feedbackType = parseEnum(FeedbackType.class, type, "feedback type");
-        if (feedbackType == FeedbackType.ACTION_ITEM) {
-            throw new RetroflowException("Action items need a priority; add them as an action item instead");
-        }
-        requireText(content, "Feedback content");
-        requireText(author, "Author");
-        Retrospective retrospective = getRetrospective(retrospectiveId);
-        requireOpen(retrospective, "add feedback");
-        return feedbackItemRepository.save(
-                new FeedbackItem(retrospective, content.strip(), feedbackType, author.strip()));
-    }
-
-    public ActionItem addActionItem(Long retrospectiveId, String content, String priority, String author) {
-        Priority actionPriority = parseEnum(Priority.class, priority, "priority");
-        requireText(content, "Action item content");
-        requireText(author, "Author");
-        Retrospective retrospective = getRetrospective(retrospectiveId);
-        requireOpen(retrospective, "add action items");
-        return actionItemRepository.save(
-                new ActionItem(retrospective, content.strip(), actionPriority, author.strip()));
-    }
-
-    public ActionItem completeActionItem(Long actionItemId) {
-        ActionItem actionItem = getActionItem(actionItemId);
-        // Spec: items of a CLOSED retrospective can never be modified
-        requireOpen(actionItem.getRetrospective(), "complete its action items");
-        actionItem.complete();
-        return actionItem;
-    }
-
-    public ActionItem uncompleteActionItem(Long actionItemId) {
-        ActionItem actionItem = getActionItem(actionItemId);
-        if (actionItem.isCompleted()) {
-            throw new RetroflowException(
-                    "Action item %d is completed and cannot be marked incomplete again".formatted(actionItemId));
-        }
-        // Already incomplete: nothing to change
-        return actionItem;
-    }
-
-    private ActionItem getActionItem(Long actionItemId) {
-        return actionItemRepository.findById(actionItemId)
-                .orElseThrow(() -> new ResourceNotFoundException("Action item", actionItemId));
-    }
-
-    private static void requireOpen(Retrospective retrospective, String attemptedAction) {
-        if (!retrospective.isOpen()) {
-            throw new RetroflowException("Retrospective %d is closed; cannot %s"
-                    .formatted(retrospective.getId(), attemptedAction));
-        }
-    }
-
-    private static void requireText(String value, String field) {
-        if (value == null || value.isBlank()) {
-            throw new RetroflowException(field + " must not be blank");
-        }
-    }
-
-    private static <E extends Enum<E>> E parseEnum(Class<E> enumType, String value, String label) {
-        if (value != null) {
-            for (E constant : enumType.getEnumConstants()) {
-                if (constant.name().equalsIgnoreCase(value.strip())) {
-                    return constant;
-                }
-            }
-        }
-        throw new RetroflowException("Unknown %s '%s'; allowed values: %s"
-                .formatted(label, value, Arrays.toString(enumType.getEnumConstants())));
-    }
 
 }
 

@@ -14,16 +14,22 @@ import jakarta.persistence.Inheritance;
 import jakarta.persistence.InheritanceType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 /**
- * A piece of feedback in a retrospective: content, a type, and the name of
- * the team member who submitted it. Items can only be added to an OPEN
- * retrospective and can never be modified once it is CLOSED.
+ * Feedback in a retrospective: content, a type and the name of its author.
+ * Items can only be added, edited or deleted while the retrospective is OPEN
+ * (enforced by {@code FeedbackService}).
  *
- * Inheritance: {@link ActionItem} extends this class using SINGLE_TABLE.
- * All items live in one table (no joins when listing a retrospective's
- * feedback, simple WHERE clauses when filtering action items); the
- * action-item-only columns (priority, completed) are null for plain feedback.
+ * Inheritance: {@link ActionItem} extends this class with SINGLE_TABLE. All items
+ * share one table: listing a retrospective's feedback needs no joins or unions,
+ * and filtering action items is a plain WHERE clause. The price is that the
+ * action-item columns (priority, completed) must be nullable.
+ *
+ * Only {@code content} and {@code author} have setters: changing the type or the
+ * retrospective would break the inheritance or the closed-retro rule (D12).
  */
 @Entity
 @Inheritance(strategy = InheritanceType.SINGLE_TABLE)
@@ -31,25 +37,34 @@ import jakarta.persistence.ManyToOne;
 @DiscriminatorValue("FEEDBACK")
 public class FeedbackItem {
 
+    public static final int MAX_CONTENT_LENGTH = 2000;
+    public static final int MAX_AUTHOR_LENGTH = 100;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @NotNull
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "retrospective_id", nullable = false)
     private Retrospective retrospective;
 
-    @Column(nullable = false, length = 2000)
+    @NotBlank
+    @Size(max = MAX_CONTENT_LENGTH)
+    @Column(nullable = false, length = MAX_CONTENT_LENGTH)
     private String content;
 
+    @NotNull
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private FeedbackType type;
 
-    @Column(nullable = false)
+    @NotBlank
+    @Size(max = MAX_AUTHOR_LENGTH)
+    @Column(nullable = false, length = MAX_AUTHOR_LENGTH)
     private String author;
 
-    protected FeedbackItem() {
+    public FeedbackItem() {
         // for JPA
     }
 
@@ -72,6 +87,10 @@ public class FeedbackItem {
         return content;
     }
 
+    public void setContent(String content) {
+        this.content = content;
+    }
+
     public FeedbackType getType() {
         return type;
     }
@@ -80,4 +99,9 @@ public class FeedbackItem {
         return author;
     }
 
+    public void setAuthor(String author) {
+        this.author = author;
+    }
+
 }
+
